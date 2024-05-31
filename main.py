@@ -4,6 +4,8 @@ import aubio
 import argparse
 import threading
 import json
+import tkinter as tk
+import threading
 import time
 
 class DeviceDetector:
@@ -56,7 +58,7 @@ class BeatDetector(threading.Thread):
                 self.bpm_estimates.append(bpm_estimate)
                 self.bpm_estimates = self.bpm_estimates[-self.rolling_window_seconds:]
                 # self.bpm = sum(self.bpm_estimates) / len(self.bpm_estimates)
-                self.bpm = bpm_estimate
+                self.bpm = round(bpm_estimate, 1)
                 # print(f"\rBeat at estimated BPM: {bpm_estimate:.2f}, rolling {self.rolling_window_seconds}s average BPM: {self.bpm:.1f} ", end='', flush=True)
 
 class BpmDisplay:
@@ -69,12 +71,32 @@ class BpmDisplay:
             print("\r\033[K" + ",       ".join([f"{i}: {beat_detector.bpm:.1f}" for i, beat_detector in enumerate(self.beat_detectors)]), end='', flush=True)
             time.sleep(1)
 
+def create_window(bd, x, y, font_size, font_color, bg_color):
+    window = tk.Toplevel()
+    window.overrideredirect(1)  # Remove border
+    window.geometry(f'+{x}+{y}')  # Set position on screen
+    window.attributes('-topmost', True)  # This makes the window always on top
+    # window.attributes('-alpha', 0.5)  # Make window semi-transparent
+    label = tk.Label(window, text=str(bd.bpm), font=("Helvetica", font_size), fg=font_color, bg=bg_color)
+    label.pack()
+
+
+    def update_label():
+        if not stop_event.is_set():
+            label.config(text=str(bd.bpm))
+            window.after(1000, update_label)  # Schedule next update after 1 second
+
+    window.after(1000, update_label)  # Start updates
+
 # Constants
 BUFFER_SIZE = 256
 CHANNELS = 1
 FORMAT = pyaudio.paFloat32
 METHOD = "default"
 SAMPLE_RATE = 44100
+
+# Add a global event to signal threads to stop
+stop_event = threading.Event()
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
@@ -91,16 +113,29 @@ else:
 
     # Create BeatDetector instances
     beat_detectors = []
-    for input_device in config['input_devices']:
-        beat_detector = BeatDetector(METHOD, BUFFER_SIZE, SAMPLE_RATE, CHANNELS, FORMAT, input_device)
+    for device in config['input_devices']:
+        beat_detector = BeatDetector(METHOD, BUFFER_SIZE, SAMPLE_RATE, CHANNELS, FORMAT, device['id'])
         beat_detector.start()
         beat_detectors.append(beat_detector)
+
+
+    root = tk.Tk()
+    root.withdraw()  # Hide main window
+
+    for i, bd in enumerate(beat_detectors):
+        create_window(bd, config['input_devices'][i]['x'], config['input_devices'][i]['y'], config['font_size'], config['font_color'], config['bg_color'])
+
+    
 
     # Create BpmDisplay instance and start it
     bpm_display = BpmDisplay(beat_detectors)
     try:
-        bpm_display.display_bpms()
+        # bpm_display.display_bpms()
+        root.mainloop()
     except KeyboardInterrupt:
         print("\nStopping")
+        stop_event.set()  # Signal threads to stop
         for beat_detector in beat_detectors:
             beat_detector.stop()
+        root.destroy()
+        
