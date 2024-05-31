@@ -4,7 +4,12 @@ Readme might not be updated as much as it should.
 
 # Project Title
 
+First run it with `--list-devices`
+Write those numbers into the `config.json` file. Start the app again without any parameters. It should now display something like:
 
+```
+0: 140.6,       1: 140.0
+```
 
 ## Setup and Installation
 
