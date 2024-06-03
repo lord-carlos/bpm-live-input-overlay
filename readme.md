@@ -1,10 +1,12 @@
-# UNDER HEAVY DEVELOPMENT. 
+# UNDER DEVELOPMENT. 
 
 Readme might not be updated as much as it should. 
 
 # Live Input BPM Overlay
 
 You can use this to show the BPM of a live input source. For example two record players. It will be always on top
+
+![Picture of Traktor with BPM overlay](image.jpg)
 
 First run it with `--list-devices`
 
