@@ -31,6 +31,9 @@ The configuration file for this project is in JSON format. You need to at least 
 
 - `bg_color`: The color of the background of the displays.
 
+- `bpm_scale` (optional): per-device calibration multiplier to adjust aubio's BPM (default 1.0). Example: `{"id":9, "x":100, "y":100, "bpm_scale": 1.0}`
+`bpm_scale` (optional): per-device calibration multiplier to adjust aubio's BPM (default 1.0). The app now attempts to use the device's default sample rate automatically, which removes the need to tune `bpm_scale` in most cases. Example: `{"id":9, "x":100, "y":100, "bpm_scale": 1.0}`
+
 ### Windows
 
 You should be able to go into releases and download the .exe file.
@@ -40,41 +43,26 @@ Download that to whereever, open a terminal in the same directory and start it t
 Stop with `ctrl` + `c`
 
 
-### Creating a Virtual Environment
+### Creating a Virtual Environment (using `uv`)
 
-1. Install the `virtualenv` package if it's not already installed. You can do this using pip:
+1. `uv` is expected to be installed already. Create and activate a `uv` environment:
 
-    ```bash
-    pip install virtualenv
-    winget.exe install install Microsoft.VisualStudio.2022.BuildTools --accept-package-agreements
-    ```
+```powershell
+uv venv
+```
 
-2. Navigate to the project directory and create a new virtual environment. Replace `env` with the name you want to give to your virtual environment:
+2. Then install Python dependencies inside the environment:
 
-    ```bash
-    virtualenv env
-    ```
-
-3. Activate the virtual environment:
-
-    - On Windows, run:
-
-        ```bash
-        .\env\Scripts\activatepy
-        ```
-
-    - On Unix or MacOS, run:
-
-        ```bash
-        source env/bin/activate
-        ```
+```powershell
+uv pip install -r requirements.txt
+```
 
 ### Installing Packages
 
-Once the virtual environment is activated, you can install the required packages using pip:
+Tip: to print raw vs adjusted BPM for calibration, set the env var in PowerShell before running:
 
-```bash
-pip install -r requirements.txt
+```powershell
+$env:BPM_DEBUG=1;uv run python .\main.py
 ```
 
 ### Building binary
@@ -82,3 +70,19 @@ pip install -r requirements.txt
 ```
 pyinstaller --onefile .\main.py
 ```
+
+## Calibration & manual testing
+
+Quick steps to validate/derive a `bpm_scale` for a device (manual tests):
+
+1. Play a known metronome audio (e.g., 120 BPM) into the target input device.
+2. Run with debug output enabled to see raw vs adjusted BPM:
+
+```powershell
+$env:BPM_DEBUG=1; python .\main.py
+```
+
+3. Observe the `raw=` value printed and compute scale = desired_bpm / mean(raw_bpm).
+4. Add `"bpm_scale": <scale>` to the device entry in `config.json` and re-run to verify readings.
+
+Varying `BUFFER_SIZE` (256 → 512) and `window_multiple` (2 → 4) in `main.py` can also affect bias and stability.

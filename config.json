@@ -1,7 +1,6 @@
 {
     "input_devices": [
-        {"id": 9, "x": 100, "y": 100},
-        {"id": 5, "x": 800, "y": 100}
+        {"id": 2, "x": 100, "y": 100}
     ],
     "font_size": 120,
     "font_color": "white",

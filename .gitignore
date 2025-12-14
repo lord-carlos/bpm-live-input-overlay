@@ -89,3 +89,6 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+bpm-live-input-overlay/
+*.zip
