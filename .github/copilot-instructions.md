@@ -18,7 +18,7 @@ This repository is a small single-process app that displays live BPM readings fr
 
 ```json
 {
-  "input_devices": [{"id": 9, "x":100, "y":100, "bpm_scale": 1.0}],
+{"input_devices": [{"id": 9, "name":"USB Audio Device","x":100, "y":100, "bpm_scale": 1.0}],
   "font_size": 120,
   "font_color": "white",
   "bg_color": "black"
@@ -67,3 +67,5 @@ Note: installing/wheel-building `pyaudio` and building with PyInstaller on Windo
 - Graceful shutdown: `BeatDetector.stop()` sets a `running` flag; app uses a `stop_event` to coordinate UI thread shutdown. When editing shutdown logic, keep the same cooperative-threading pattern.
 
 - Debugging: set environment variable `BPM_DEBUG=1` to print raw vs adjusted BPM for local calibration.
+- Settings & device mapping: run `python .\main.py --settings` to open the Settings window. The app stores both `id` and `name` on add and resolves devices by name first (then substring, then id fallback) to be robust to device index changes.
+- Tray: a system tray icon is available via `pystray`. Use the tray menu to open Settings, Toggle display, or Quit. See `tray.py` for implementation notes.

@@ -1,6 +1,25 @@
 {
     "input_devices": [
-        {"id": 2, "x": 100, "y": 100}
+        {
+            "id": 2,
+            "x": 100,
+            "y": 100,
+            "name": "Aux 2/ Main (Xone 96 USB 2)"
+        },
+        {
+            "id": 3,
+            "name": "Input 2 (Xone 96 USB 2)",
+            "x": 1000,
+            "y": 100,
+            "bpm_scale": 1.0
+        },
+        {
+            "id": 2,
+            "name": "Aux 2/ Main (Xone 96 USB 2)",
+            "x": 100,
+            "y": 200,
+            "bpm_scale": 1.0
+        }
     ],
     "font_size": 120,
     "font_color": "white",

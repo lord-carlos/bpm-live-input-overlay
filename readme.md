@@ -32,7 +32,7 @@ The configuration file for this project is in JSON format. You need to at least 
 - `bg_color`: The color of the background of the displays.
 
 - `bpm_scale` (optional): per-device calibration multiplier to adjust aubio's BPM (default 1.0). Example: `{"id":9, "x":100, "y":100, "bpm_scale": 1.0}`
-`bpm_scale` (optional): per-device calibration multiplier to adjust aubio's BPM (default 1.0). The app now attempts to use the device's default sample rate automatically, which removes the need to tune `bpm_scale` in most cases. Example: `{"id":9, "x":100, "y":100, "bpm_scale": 1.0}`
+- `bpm_scale` (optional): per-device calibration multiplier to adjust aubio's BPM (default 1.0). The app now attempts to use the device's default sample rate automatically, which removes the need to tune `bpm_scale` in most cases. Example: `{"id":9, "name":"USB Audio Device","x":100, "y":100, "bpm_scale": 1.0}`
 
 ### Windows
 
@@ -62,14 +62,24 @@ uv pip install -r requirements.txt
 Tip: to print raw vs adjusted BPM for calibration, set the env var in PowerShell before running:
 
 ```powershell
-$env:BPM_DEBUG=1;uv run python .\main.py
+$env:BPM_DEBUG=1; python .\main.py
 ```
+
+Settings UI: you can open the settings window on startup to add/remove/configure devices:
+
+```powershell
+python .\main.py --settings
+```
+
+The settings window stores both `id` and `name` for devices and will try to match devices by name first on subsequent runs so device order is more robust across reboots.
 
 ### Building binary
 
 ```
 pyinstaller --onefile .\main.py
 ```
+
+Note: the tray icon feature uses `pystray` and `pillow`. When building with PyInstaller, ensure `pystray` and `PIL` are included and bundle any icon assets you use.
 
 ## Calibration & manual testing
 
@@ -86,3 +96,7 @@ $env:BPM_DEBUG=1; python .\main.py
 4. Add `"bpm_scale": <scale>` to the device entry in `config.json` and re-run to verify readings.
 
 Varying `BUFFER_SIZE` (256 → 512) and `window_multiple` (2 → 4) in `main.py` can also affect bias and stability.
+
+### ---
+
+Icon taken from https://iconoir.com

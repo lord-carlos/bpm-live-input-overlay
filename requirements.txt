@@ -2,3 +2,5 @@ pyaudio
 numpy
 aubio
 argparse
+pystray
+pillow
