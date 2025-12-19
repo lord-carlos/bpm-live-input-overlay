@@ -17,6 +17,48 @@ def _create_image(size=64, color1=(30, 144, 255), color2=(255, 255, 255)):
     return img
 
 
+def setup_app_icon(root):
+    """Set the window icon for the root and all future Toplevels."""
+    ico_path = 'icon.ico'
+    png_path = 'icon.png'
+    
+    # Ensure ico exists if png exists on Windows
+    if os.name == 'nt' and not os.path.exists(ico_path) and os.path.exists(png_path):
+        try:
+            img = Image.open(png_path)
+            img.save(ico_path, format='ICO', sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
+        except Exception:
+            pass
+
+    if os.path.exists(ico_path):
+        try:
+            # Set default icon for all future Toplevels
+            root.iconbitmap(default=ico_path)
+            return
+        except Exception:
+            try:
+                root.iconbitmap(ico_path)
+            except Exception:
+                pass
+            
+    # Fallback to png if ico fails or doesn't exist
+    for candidate in (os.path.join('assets', 'icon.png'), 'icon.png'):
+        if os.path.exists(candidate):
+            try:
+                from PIL import ImageTk
+                img = Image.open(candidate)
+                # Use a large enough size for the taskbar
+                img_small = img.resize((32, 32), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img_small)
+                # True makes it the default for all Toplevels
+                root.iconphoto(True, photo)
+                # Keep a reference to prevent garbage collection
+                root._app_icon = photo
+                return
+            except Exception:
+                pass
+
+
 class Tray:
     def __init__(self, root, on_settings, on_toggle, on_quit):
         self.root = root
@@ -54,16 +96,38 @@ class Tray:
             pass
 
     def start(self):
-        # prefer repo icon asset if provided (assets/icon.png or icon.png)
+        # Check for icon.ico first (Windows preference)
         image = None
-        for candidate in (os.path.join('assets', 'icon.png'), 'icon.png'):
+        ico_path = 'icon.ico'
+        png_path = 'icon.png'
+        
+        # If on Windows and no ico but png exists, convert it
+        if os.name == 'nt' and not os.path.exists(ico_path) and os.path.exists(png_path):
             try:
-                if os.path.exists(candidate):
-                    image = Image.open(candidate).convert('RGBA')
-                    logging.info('Loaded tray icon from %s', candidate)
-                    break
+                img = Image.open(png_path)
+                img.save(ico_path, format='ICO', sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
+                logging.info('Converted icon.png to icon.ico for Windows tray')
             except Exception:
-                logging.exception('Failed to load tray icon from %s', candidate)
+                logging.exception('Failed to convert icon.png to icon.ico')
+
+        # Try loading ico first
+        if os.path.exists(ico_path):
+             try:
+                image = Image.open(ico_path)
+                logging.info('Loaded tray icon from %s', ico_path)
+             except Exception:
+                 logging.exception('Failed to load %s', ico_path)
+
+        # Fallback to png
+        if image is None:
+            for candidate in (os.path.join('assets', 'icon.png'), 'icon.png'):
+                try:
+                    if os.path.exists(candidate):
+                        image = Image.open(candidate).convert('RGBA')
+                        logging.info('Loaded tray icon from %s', candidate)
+                        break
+                except Exception:
+                    logging.exception('Failed to load tray icon from %s', candidate)
 
         if image is None:
             image = _create_image()

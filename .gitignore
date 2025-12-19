@@ -92,3 +92,4 @@ cython_debug/
 
 bpm-live-input-overlay/
 *.zip
+*.ico
