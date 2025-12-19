@@ -4,3 +4,5 @@ aubio
 argparse
 pystray
 pillow
+mido
+python-rtmidi

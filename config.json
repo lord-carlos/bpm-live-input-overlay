@@ -1,15 +1,18 @@
 {
     "input_devices": [
         {
-            "id": 9,
-            "name": "Line In (Realtek HD Audio Line input)",
+            "id": 2,
+            "name": "Aux 2/ Main (Xone 96 USB 2)",
             "x": 100,
             "y": 100,
-            "text_size": 87,
+            "text_size": 71,
             "_resolved": true
         }
     ],
     "font_size": 100,
     "font_color": "white",
-    "bg_color": "black"
+    "bg_color": "black",
+    "midi_enabled": true,
+    "midi_port": "XONE 96 2 1",
+    "midi_source_slot": 0
 }

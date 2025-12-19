@@ -7,6 +7,7 @@ import tkinter as tk
 import os
 from beat_detector import BeatDetector, resolve_device_index, DeviceDetector
 from ui import OverlayController, SettingsWindow
+from midi_clock import MIDIClockSender
 
 # Constants
 BUFFER_SIZE = 256
@@ -103,9 +104,73 @@ else:
     overlay_controller = OverlayController(root, beat_detectors, config, stop_event)
     overlay_controller.create_windows()
 
+    # Initialize MIDI Clock sender
+    midi_sender = None
+    last_bpm_sent = None
+    
+    def update_midi_clock():
+        """Monitor BPM and update MIDI clock. Called every second."""
+        global midi_sender, last_bpm_sent
+        
+        if stop_event.is_set():
+            return
+        
+        try:
+            midi_enabled = config.get('midi_enabled', False)
+            midi_port = config.get('midi_port')
+            source_slot = config.get('midi_source_slot', 0)
+            
+            # Start/stop MIDI sender based on config
+            if midi_enabled and midi_port and midi_port != "No MIDI ports found":
+                # Initialize sender if needed
+                if midi_sender is None or midi_sender.port_name != midi_port:
+                    if midi_sender:
+                        midi_sender.close()
+                    midi_sender = MIDIClockSender(midi_port)
+                    last_bpm_sent = None
+                    logging.info(f"MIDI Clock: Initialized with port '{midi_port}'")
+                
+                # Get BPM from selected source
+                if source_slot < len(beat_detectors) and beat_detectors[source_slot] is not None:
+                    current_bpm = beat_detectors[source_slot].bpm
+                    
+                    # Only update/start if BPM is valid and changed
+                    if current_bpm > 0:
+                        if not midi_sender.is_running():
+                            # First valid BPM - start the clock
+                            midi_sender.set_bpm(current_bpm)
+                            midi_sender.start()
+                            last_bpm_sent = current_bpm
+                            logging.info(f"MIDI Clock: Started with initial BPM {current_bpm:.2f}")
+                        elif current_bpm != last_bpm_sent:
+                            # BPM changed - update it
+                            midi_sender.set_bpm(current_bpm)
+                            last_bpm_sent = current_bpm
+                            logging.debug(f"MIDI Clock: Updated to BPM {current_bpm:.2f}")
+            else:
+                # MIDI disabled or no port - stop sender if running
+                if midi_sender:
+                    midi_sender.close()
+                    midi_sender = None
+                    last_bpm_sent = None
+                    logging.info("MIDI Clock: Disabled")
+        except Exception:
+            logging.exception("Error in MIDI clock update")
+        
+        # Schedule next update
+        root.after(1000, update_midi_clock)
+    
+    # Start MIDI monitoring loop
+    root.after(1000, update_midi_clock)
+
     def quit_from_tray():
         # called from tray menu on main thread
         stop_event.set()
+        if midi_sender:
+            try:
+                midi_sender.close()
+            except Exception:
+                logging.exception('Error closing MIDI sender')
         for bd in beat_detectors:
             if bd is not None:
                 try:
@@ -199,6 +264,9 @@ else:
     except KeyboardInterrupt:
         logging.info('KeyboardInterrupt, shutting down')
         stop_event.set()
+        if midi_sender:
+            try: midi_sender.close()
+            except: pass
         for beat_detector in beat_detectors:
             if beat_detector is not None:
                 try:
@@ -212,6 +280,9 @@ else:
     except Exception:
         logging.exception('Unhandled exception in mainloop')
         stop_event.set()
+        if midi_sender:
+            try: midi_sender.close()
+            except: pass
         if tray is not None:
             try: tray.stop()
             except: pass

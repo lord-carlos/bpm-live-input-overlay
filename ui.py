@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox, colorchooser
 import logging
 import json
 from beat_detector import list_input_devices
+from midi_clock import list_midi_ports
 
 class OverlayController:
     def __init__(self, root, beat_detectors, config, stop_event):
@@ -173,9 +174,12 @@ class SettingsWindow:
 
         self.window = tk.Toplevel(self.root)
         self.window.title('Settings')
-        self.window.geometry("650x300")
-        self.window.minsize(600, 250)
+        self.window.geometry("650x350")
+        self.window.minsize(600, 350)
         self.window.protocol('WM_DELETE_WINDOW', self.close)
+        
+        # Center on screen
+        self._center_window(self.window, 650, 350)
 
         # Main layout
         main_frame = ttk.Frame(self.window, padding=10)
@@ -214,6 +218,53 @@ class SettingsWindow:
         self.bg_color_btn.pack(side='left', padx=5)
         
         self.update_color_buttons()
+
+        # MIDI Clock Output Section
+        midi_frame = ttk.LabelFrame(main_frame, text="MIDI Clock Output", padding=10)
+        midi_frame.pack(fill='x', pady=(10, 0))
+        
+        # Enable checkbox
+        self.midi_enabled_var = tk.BooleanVar(value=self.config.get('midi_enabled', False))
+        ttk.Checkbutton(midi_frame, text="Enable", variable=self.midi_enabled_var, 
+                        command=self.on_midi_enable_change).pack(side='left', padx=5)
+        
+        # Source device dropdown
+        ttk.Label(midi_frame, text="Source:").pack(side='left', padx=(20, 5))
+        self.midi_source_var = tk.StringVar()
+        source_choices = [f"Slot {i}: {dev.get('name', 'Unknown')[:30]}" 
+                          for i, dev in enumerate(self.config.get('input_devices', []))]
+        if not source_choices:
+            source_choices = ["No devices configured"]
+        self.midi_source_combo = ttk.Combobox(midi_frame, textvariable=self.midi_source_var, 
+                                               values=source_choices, state='readonly', width=25)
+        source_slot = self.config.get('midi_source_slot', 0)
+        if source_slot < len(source_choices):
+            self.midi_source_combo.current(source_slot)
+        elif source_choices:
+            self.midi_source_combo.current(0)
+        self.midi_source_combo.bind('<<ComboboxSelected>>', self.on_midi_source_change)
+        self.midi_source_combo.pack(side='left', padx=5)
+        
+        # MIDI port dropdown
+        ttk.Label(midi_frame, text="Port:").pack(side='left', padx=(20, 5))
+        self.midi_port_var = tk.StringVar()
+        self.midi_ports = list_midi_ports()
+        if not self.midi_ports:
+            self.midi_ports = ["No MIDI ports found"]
+        self.midi_port_combo = ttk.Combobox(midi_frame, textvariable=self.midi_port_var, 
+                                             values=self.midi_ports, state='readonly', width=20)
+        saved_port = self.config.get('midi_port')
+        if saved_port and saved_port in self.midi_ports:
+            self.midi_port_combo.set(saved_port)
+        elif self.midi_ports and self.midi_ports[0] != "No MIDI ports found":
+            self.midi_port_combo.current(0)
+        else:
+            self.midi_port_combo.set(self.midi_ports[0])
+        self.midi_port_combo.bind('<<ComboboxSelected>>', self.on_midi_port_change)
+        self.midi_port_combo.pack(side='left', padx=5)
+        
+        # Refresh button
+        ttk.Button(midi_frame, text="Refresh", command=self.refresh_midi_ports, width=8).pack(side='left', padx=5)
 
         # Footer buttons
         btn_frame = ttk.Frame(main_frame, padding=(0, 10, 0, 0))
@@ -281,6 +332,10 @@ class SettingsWindow:
             })
         
         self._updating = False
+        
+        # Update MIDI source dropdown if it exists
+        if hasattr(self, 'midi_source_combo'):
+            self.refresh_midi_source_list()
 
     def on_value_change(self, index):
         if self._updating: return
@@ -297,15 +352,44 @@ class SettingsWindow:
             pass
 
     def add_device_dialog(self):
-        avail = list_input_devices()
         sel_win = tk.Toplevel(self.window)
         sel_win.title('Choose device')
+        sel_win.geometry("500x300")
         
-        lb = ttk.Treeview(sel_win, columns=('id', 'name'), show='headings')
-        lb.heading('id', text='ID'); lb.heading('name', text='Name')
-        for a in avail:
-            lb.insert('', 'end', values=(a['id'], a['name']))
-        lb.pack(fill='both', expand=True)
+        # Center on screen
+        self._center_window(sel_win, 500, 300)
+        
+        # Create frame for the treeview and buttons
+        frame = ttk.Frame(sel_win)
+        frame.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        lb = ttk.Treeview(frame, columns=('id', 'name'), show='headings')
+        lb.heading('id', text='ID')
+        lb.heading('name', text='Name')
+        lb.column('id', width=50)
+        lb.column('name', width=400)
+        lb.pack(fill='both', expand=True, side='top')
+        
+        # Function to refresh the device list
+        def refresh_devices():
+            # Clear existing items
+            for item in lb.get_children():
+                lb.delete(item)
+            
+            # Get fresh list of devices
+            avail = list_input_devices()
+            logging.info(f"Refreshed audio device list: found {len(avail)} devices")
+            
+            # Populate treeview
+            for a in avail:
+                lb.insert('', 'end', values=(a['id'], a['name']))
+        
+        # Initial population
+        refresh_devices()
+        
+        # Button frame
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill='x', pady=(10, 0))
         
         def confirm():
             sel = lb.selection()
@@ -324,13 +408,81 @@ class SettingsWindow:
             self.config['input_devices'].append(new_dev)
             self.refresh_list()
             sel_win.destroy()
-            
-        ttk.Button(sel_win, text="Add", command=confirm).pack()
+        
+        ttk.Button(btn_frame, text="Refresh List", command=refresh_devices).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Add", command=confirm).pack(side='right', padx=5)
+        ttk.Button(btn_frame, text="Cancel", command=sel_win.destroy).pack(side='right', padx=5)
 
     def remove_device(self, index):
         if messagebox.askyesno("Confirm", "Remove this device?"):
             del self.config['input_devices'][index]
             self.refresh_list()
+
+    def on_midi_enable_change(self):
+        """Handle MIDI enable checkbox toggle."""
+        self.config['midi_enabled'] = self.midi_enabled_var.get()
+        if self.on_change:
+            self.on_change(self.config)
+
+    def on_midi_source_change(self, event=None):
+        """Handle MIDI source device selection change."""
+        selection = self.midi_source_var.get()
+        if selection and selection != "No devices configured":
+            # Extract slot number from "Slot X: DeviceName"
+            slot = int(selection.split(':')[0].replace('Slot', '').strip())
+            self.config['midi_source_slot'] = slot
+            if self.on_change:
+                self.on_change(self.config)
+
+    def on_midi_port_change(self, event=None):
+        """Handle MIDI port selection change."""
+        port = self.midi_port_var.get()
+        if port and port != "No MIDI ports found":
+            self.config['midi_port'] = port
+            if self.on_change:
+                self.on_change(self.config)
+
+    def refresh_midi_ports(self):
+        """Refresh the list of available MIDI ports and source devices."""
+        # Refresh MIDI ports
+        self.midi_ports = list_midi_ports()
+        if not self.midi_ports:
+            self.midi_ports = ["No MIDI ports found"]
+        
+        self.midi_port_combo['values'] = self.midi_ports
+        
+        # Try to keep current selection if still available
+        current = self.midi_port_var.get()
+        if current and current in self.midi_ports:
+            self.midi_port_combo.set(current)
+        elif self.midi_ports and self.midi_ports[0] != "No MIDI ports found":
+            self.midi_port_combo.current(0)
+            self.config['midi_port'] = self.midi_ports[0]
+        else:
+            self.midi_port_combo.set(self.midi_ports[0])
+            self.config['midi_port'] = None
+        
+        # Also refresh source device list
+        self.refresh_midi_source_list()
+
+    def refresh_midi_source_list(self):
+        """Refresh the MIDI source device dropdown."""
+        source_choices = [f"Slot {i}: {dev.get('name', 'Unknown')[:30]}" 
+                          for i, dev in enumerate(self.config.get('input_devices', []))]
+        if not source_choices:
+            source_choices = ["No devices configured"]
+        
+        self.midi_source_combo['values'] = source_choices
+        
+        # Try to keep current selection if still valid
+        current_slot = self.config.get('midi_source_slot', 0)
+        if current_slot < len(source_choices) and source_choices[0] != "No devices configured":
+            self.midi_source_combo.current(current_slot)
+        elif source_choices and source_choices[0] != "No devices configured":
+            self.midi_source_combo.current(0)
+            self.config['midi_source_slot'] = 0
+        else:
+            self.midi_source_combo.set(source_choices[0])
 
     def pick_color(self, key):
         """Open color picker dialog and update config."""
@@ -369,6 +521,15 @@ class SettingsWindow:
                 return
 
         self.on_save(self.config)
+
+    def _center_window(self, window, width, height):
+        """Center a window on the screen."""
+        window.update_idletasks()
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        window.geometry(f"{width}x{height}+{x}+{y}")
 
     def close(self):
         if self.window:
