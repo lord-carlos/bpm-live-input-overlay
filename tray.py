@@ -1,8 +1,20 @@
 import logging
 import os
+import sys
 import threading
 import pystray
 from PIL import Image, ImageDraw
+
+
+def get_resource_path(filename):
+    """Get the path to a bundled resource, works for both dev and PyInstaller."""
+    if getattr(sys, 'frozen', False):
+        # Running as compiled exe
+        base_path = sys._MEIPASS
+    else:
+        # Running as script
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, filename)
 
 
 def _create_image(size=64, color1=(30, 144, 255), color2=(255, 255, 255)):
@@ -19,30 +31,48 @@ def _create_image(size=64, color1=(30, 144, 255), color2=(255, 255, 255)):
 
 def setup_app_icon(root):
     """Set the window icon for the root and all future Toplevels."""
-    ico_path = 'icon.ico'
-    png_path = 'icon.png'
+    ico_path = get_resource_path('icon.ico')
+    png_path = get_resource_path('icon.png')
+    
+    # For frozen exe, also check current working directory for user-provided icon
+    if getattr(sys, 'frozen', False):
+        cwd_ico = 'icon.ico'
+        cwd_png = 'icon.png'
+        if os.path.exists(cwd_ico):
+            ico_path = cwd_ico
+        if os.path.exists(cwd_png):
+            png_path = cwd_png
     
     # Ensure ico exists if png exists on Windows
     if os.name == 'nt' and not os.path.exists(ico_path) and os.path.exists(png_path):
         try:
             img = Image.open(png_path)
+            # Save ico in temp location for frozen exe
+            if getattr(sys, 'frozen', False):
+                import tempfile
+                ico_path = os.path.join(tempfile.gettempdir(), 'bpm_overlay_icon.ico')
+            else:
+                ico_path = 'icon.ico'
             img.save(ico_path, format='ICO', sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
+            logging.info(f"Generated icon.ico at {ico_path}")
         except Exception:
-            pass
+            logging.exception("Failed to generate icon.ico")
 
     if os.path.exists(ico_path):
         try:
             # Set default icon for all future Toplevels
             root.iconbitmap(default=ico_path)
+            logging.info(f"Set app icon from {ico_path}")
             return
         except Exception:
             try:
                 root.iconbitmap(ico_path)
+                return
             except Exception:
-                pass
+                logging.exception("Failed to set iconbitmap")
             
     # Fallback to png if ico fails or doesn't exist
-    for candidate in (os.path.join('assets', 'icon.png'), 'icon.png'):
+    for candidate in (png_path, get_resource_path('icon.png'), 'icon.png'):
         if os.path.exists(candidate):
             try:
                 from PIL import ImageTk
@@ -54,9 +84,10 @@ def setup_app_icon(root):
                 root.iconphoto(True, photo)
                 # Keep a reference to prevent garbage collection
                 root._app_icon = photo
+                logging.info(f"Set app icon from {candidate}")
                 return
             except Exception:
-                pass
+                logging.exception(f"Failed to load icon from {candidate}")
 
 
 class Tray:
@@ -98,15 +129,27 @@ class Tray:
     def start(self):
         # Check for icon.ico first (Windows preference)
         image = None
-        ico_path = 'icon.ico'
-        png_path = 'icon.png'
+        ico_path = get_resource_path('icon.ico')
+        png_path = get_resource_path('icon.png')
+        
+        # For frozen exe, also check current working directory
+        if getattr(sys, 'frozen', False):
+            if os.path.exists('icon.ico'):
+                ico_path = 'icon.ico'
+            if os.path.exists('icon.png'):
+                png_path = 'icon.png'
         
         # If on Windows and no ico but png exists, convert it
         if os.name == 'nt' and not os.path.exists(ico_path) and os.path.exists(png_path):
             try:
                 img = Image.open(png_path)
+                if getattr(sys, 'frozen', False):
+                    import tempfile
+                    ico_path = os.path.join(tempfile.gettempdir(), 'bpm_overlay_tray.ico')
+                else:
+                    ico_path = 'icon.ico'
                 img.save(ico_path, format='ICO', sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
-                logging.info('Converted icon.png to icon.ico for Windows tray')
+                logging.info('Converted icon.png to icon.ico for Windows tray at %s', ico_path)
             except Exception:
                 logging.exception('Failed to convert icon.png to icon.ico')
 
@@ -120,7 +163,7 @@ class Tray:
 
         # Fallback to png
         if image is None:
-            for candidate in (os.path.join('assets', 'icon.png'), 'icon.png'):
+            for candidate in (png_path, get_resource_path('icon.png'), 'icon.png'):
                 try:
                     if os.path.exists(candidate):
                         image = Image.open(candidate).convert('RGBA')
