@@ -20,7 +20,7 @@ CHANNELS = 2                 # Mono audio # 1 bad results.
 
 # Rolling buffer settings
 BUFFER_DURATION = 8.0       # Seconds of audio to keep in rolling buffer
-UPDATE_INTERVAL = 8.0        # Seconds between BPM recalculations
+UPDATE_INTERVAL = 2.0        # Seconds between BPM recalculations
 
 # Librosa beat_track parameters
 HOP_LENGTH = 256             # Hop length for onset detection (larger = faster, less accurate) default: 256
@@ -76,8 +76,21 @@ class LibrosaBeatDetector(BaseBeatDetector):
         if self.input_device_index is not None:
             device_info = self.pa.get_device_info_by_index(self.input_device_index)
             native_rate = int(device_info.get('defaultSampleRate', 44100))
-            if DEBUG:
-                print(f"[LibrosaBeatDetector] Device native rate: {native_rate}, using: {self.sample_rate}")
+            
+            # Update sample rate to match device native rate (avoid resampling artifacts)
+            if native_rate != self.sample_rate:
+                if DEBUG:
+                    print(f"[LibrosaBeatDetector] Switching to native device rate: {native_rate} (was {self.sample_rate})")
+                self.sample_rate = native_rate
+                
+                # Recalculate buffer sizes based on new rate
+                self.buffer_samples = int(BUFFER_DURATION * self.sample_rate)
+                self.update_samples = int(UPDATE_INTERVAL * self.sample_rate)
+                
+                # Re-initialize rolling buffer with new size
+                self.audio_buffer = np.zeros(self.buffer_samples, dtype=np.float32)
+            elif DEBUG:
+                print(f"[LibrosaBeatDetector] Device rate matches default: {self.sample_rate}")
         
         try:
             self.stream = self.pa.open(
@@ -139,13 +152,17 @@ class LibrosaBeatDetector(BaseBeatDetector):
                 detrend=DETREND,
             )
             
+            # Adaptive starting BPM: if we have a valid previous reading, use it
+            # This prevents octave jumps (60 vs 120) and helps lock on
+            current_start_bpm = self.bpm if self.bpm > 0 else START_BPM
+
             # Use beat_track to find beat locations
             # tightness=100 helps lock onto stable beats in electronic music
             tempo, beats = librosa.beat.beat_track(
                 onset_envelope=onset_env,
                 sr=self.sample_rate,
                 hop_length=HOP_LENGTH,
-                start_bpm=START_BPM,
+                start_bpm=current_start_bpm,
                 tightness=100
             )
             
@@ -182,9 +199,21 @@ class LibrosaBeatDetector(BaseBeatDetector):
             valid_ibis = ibis[(ibis > 0.27) & (ibis < 1.5)]
             
             if len(valid_ibis) > 0:
-                # Use median to ignore outliers (missed beats etc)
+                # Cluster Averaging:
+                # 1. Get the median to find the "center" of the rhythm suitable for rejecting outliers
                 median_ibi = np.median(valid_ibis)
-                raw_bpm = 60.0 / median_ibi
+                
+                # 2. Select intervals within 5% of the median (rejects outliers like missed/double beats)
+                tolerance = 0.05
+                cluster_ibis = valid_ibis[np.abs(valid_ibis - median_ibi) <= (tolerance * median_ibi)]
+                
+                # 3. Take the MEAN of this cluster to get sub-sample precision
+                # This fixes the "snapping" issue of just using the single median value
+                if len(cluster_ibis) > 0:
+                    mean_ibi = np.mean(cluster_ibis)
+                    raw_bpm = 60.0 / mean_ibi
+                else:
+                    raw_bpm = 60.0 / median_ibi
                 
                 # Apply smoothing if enabled
                 if ENABLE_SMOOTHING and self.bpm > 0:
