@@ -53,7 +53,7 @@ uv run python ./main.py --settings --debug
 ### Building binary
 
 ```
-pyinstaller --onefile .\main.py
+pyinstaller main.spec
 ```
 
 Note: the tray icon feature uses `pystray` and `pillow`. When building with PyInstaller, ensure `pystray` and `PIL` are included and bundle any icon assets you use.
