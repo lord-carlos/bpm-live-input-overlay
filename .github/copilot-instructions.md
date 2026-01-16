@@ -34,7 +34,7 @@ python .\main.py --list-devices
 ```
 - Run the app locally:
 ```powershell
-;uv run python .\main.py
+uv run python .\main.py
 ```
 
 - Build a bundled Windows executable (pyinstaller):

@@ -5,11 +5,21 @@ import threading
 import json
 import tkinter as tk
 import os
-from beat_detector import BeatDetector, resolve_device_index, DeviceDetector
+from beat_detector import resolve_device_index, DeviceDetector
 from ui import OverlayController, SettingsWindow
 from midi_clock import MIDIClockSender
 
-# Constants
+# =============================================================================
+# DETECTOR SELECTION - Toggle between aubio and librosa implementations
+# =============================================================================
+USE_LIBROSA = True  # Set to False to use original aubio-based detector
+
+if USE_LIBROSA:
+    from librosa_beat_detector import LibrosaBeatDetector
+else:
+    from beat_detector import BeatDetector
+
+# Constants (used by aubio detector)
 BUFFER_SIZE = 256
 CHANNELS = 1
 FORMAT = pyaudio.paFloat32
@@ -81,7 +91,10 @@ else:
             logging.exception("Error persisting device name for slot %d", i)
 
         try:
-            beat_detector = BeatDetector(METHOD, BUFFER_SIZE, SAMPLE_RATE, CHANNELS, FORMAT, resolved)
+            if USE_LIBROSA:
+                beat_detector = LibrosaBeatDetector(input_device_index=resolved)
+            else:
+                beat_detector = BeatDetector(METHOD, BUFFER_SIZE, SAMPLE_RATE, CHANNELS, FORMAT, resolved)
             beat_detector.start()
             beat_detectors.append(beat_detector)
         except Exception:
@@ -202,7 +215,10 @@ else:
                     continue
                 
                 config['input_devices'][i]['_resolved'] = True
-                bd = BeatDetector(METHOD, BUFFER_SIZE, SAMPLE_RATE, CHANNELS, FORMAT, resolved)
+                if USE_LIBROSA:
+                    bd = LibrosaBeatDetector(input_device_index=resolved)
+                else:
+                    bd = BeatDetector(METHOD, BUFFER_SIZE, SAMPLE_RATE, CHANNELS, FORMAT, resolved)
                 bd.start()
                 beat_detectors.append(bd)
             except Exception:

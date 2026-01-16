@@ -5,6 +5,8 @@ import aubio
 import numpy as np
 import logging
 
+from beat_detector_base import BaseBeatDetector
+
 
 class DeviceDetector:
     def __init__(self):
@@ -82,9 +84,9 @@ def resolve_device_index(pyaudio_instance, config_entry):
             pass
     return None
 
-class BeatDetector(threading.Thread):
+class BeatDetector(BaseBeatDetector):
     def __init__(self, method, buffer_size, sample_rate, channels, format, input_device_index=None, window_multiple=4):
-        threading.Thread.__init__(self)
+        super().__init__(input_device_index)
         self.p = pyaudio.PyAudio()
         # make buffer and window sizes explicit and configurable
         self.buffer_size = buffer_size

@@ -5,14 +5,14 @@
             "name": "Aux 2/ Main (Xone 96 USB 2)",
             "x": 100,
             "y": 100,
-            "text_size": 71,
+            "text_size": 100,
             "_resolved": true
         }
     ],
     "font_size": 100,
     "font_color": "white",
     "bg_color": "black",
-    "midi_enabled": true,
-    "midi_port": "XONE 96 2 1",
+    "midi_enabled": false,
+    "midi_port": "XONE 96 2 2",
     "midi_source_slot": 0
 }
