@@ -8,6 +8,24 @@ import logging
 from beat_detector_base import BaseBeatDetector
 
 
+# BPM detection range - raw aubio estimates are octave-folded into this range.
+# aubio's tempo tracker can jump an octave (half/double time) on some material;
+# unlike the librosa detector there is no onset envelope available here for
+# scoring, so folding is blind (octaves only, no triplet ratios).
+MIN_BPM = 90.0
+MAX_BPM = 150.0
+
+
+def fold_into_range(bpm):
+    """Fold octave errors into [MIN_BPM, MAX_BPM] by halving/doubling.
+    Falls back to clamping when no octave multiple lands in range."""
+    candidates = [bpm * m for m in (0.25, 0.5, 1.0, 2.0, 4.0)]
+    in_range = [c for c in candidates if MIN_BPM <= c <= MAX_BPM]
+    if in_range:
+        return min(in_range, key=lambda c: abs(c - bpm))
+    return float(np.clip(bpm, MIN_BPM, MAX_BPM))
+
+
 class DeviceDetector:
     def __init__(self):
         self.p = pyaudio.PyAudio()
@@ -144,7 +162,7 @@ class BeatDetector(BaseBeatDetector):
             # this_beat = int(self.tempo.get_last_s())
             raw_bpm = self.tempo.get_bpm()
             if raw_bpm:
-                bpm_estimate = raw_bpm
+                bpm_estimate = fold_into_range(raw_bpm)
                 self.bpm_estimates.append(bpm_estimate)
                 # keep last N seconds estimates
                 self.bpm_estimates = self.bpm_estimates[-self.rolling_window_seconds:]
